@@ -8,7 +8,7 @@ module("The router", {
     expectedUrl = null;
 
     map(function(match) {
-      match("/index").to("index");
+      match("/index").to("index").withQueryParams('sort', 'filter');
       match("/about").to("about");
       match("/faq").to("faq");
       match("/posts", function(match) {
@@ -112,6 +112,27 @@ asyncTest("Handling a URL triggers model on the handler and passes the result in
   router.handleURL("/posts/1").then(start, shouldNotHappen);
 });
 
+asyncTest("Handling a URL passes in query params", function() {
+  expect(2);
+
+  var indexHandler = {
+    model: function(params, transition, queryParams) {
+      deepEqual(queryParams, { sort: 'date', filter: 'name' });
+    },
+
+    setup: function(object, queryParams) {
+      deepEqual(queryParams, { sort: 'date', filter: 'name' });
+    }
+  };
+
+
+  handlers = {
+    index: indexHandler
+  };
+
+  router.handleURL("/index?sort=date&filter=name").then(start, shouldNotHappen);
+});
+
 asyncTest("handleURL accepts slash-less URLs", function() {
 
   handlers = {
@@ -123,6 +144,21 @@ asyncTest("handleURL accepts slash-less URLs", function() {
   };
 
   router.handleURL("posts/all").then(start);
+});
+
+asyncTest("handleURL accepts query params", function() {
+
+  handlers = {
+    posts: {},
+    postIndex: {},
+    showAllPosts: {
+      setup: function() {
+        ok(true, "showAllPosts' setup called");
+      }
+    }
+  };
+
+  router.handleURL("/posts/all?sort=name&sortDirection=descending").then(start, shouldNotHappen);
 });
 
 asyncTest("when transitioning with the same context, setup should only be called once", function() {
@@ -1415,6 +1451,7 @@ asyncTest("error handler gets called for errors in validation hooks, even if tra
   var returnPromise = false;
   function aborTransitionAndThrowAnError() {
     var transition = arguments[arguments.length - 1];
+    if(!transition || !transition.then) { transition = arguments[arguments.length - 2] };
     transition.abort();
     // abort, but also reject the promise for a different reason
     if (returnPromise) {

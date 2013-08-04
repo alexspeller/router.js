@@ -593,7 +593,7 @@
 
       setContext(handler, context);
 
-      if (handler.setup) { handler.setup(context); }
+      if (handler.setup) { handler.setup(context, handlerInfo.queryParams); }
       checkAbort(transition);
     } catch(e) {
       if (!(e instanceof Router.TransitionAborted)) {
@@ -828,11 +828,16 @@
       var handlerObj = recogHandlers[i],
           isDynamic = handlerObj.isDynamic || (handlerObj.names && handlerObj.names.length);
 
-      handlerInfos.push({
+
+      var handlerInfo = {
         isDynamic: !!isDynamic,
         name: handlerObj.handler,
         handler: router.getHandler(handlerObj.handler)
-      });
+      };
+      if(handlerObj.queryParams) {
+        handlerInfo.queryParams = handlerObj.queryParams;
+      }
+      handlerInfos.push(handlerInfo);
     }
     return handlerInfos;
   }
@@ -981,7 +986,6 @@
 
     function model() {
       log(router, seq, handlerName + ": resolving model");
-
       var p = getModel(handlerInfo, transition, handlerParams[handlerName], index >= matchPoint);
       return (p instanceof Transition) ? null : p;
     }
@@ -1040,7 +1044,7 @@
       return typeof providedModel === 'function' ? providedModel() : providedModel;
     }
 
-    return handler.model && handler.model(handlerParams || {}, transition);
+    return handler.model && handler.model(handlerParams || {}, transition, handlerInfo.queryParams);
   }
 
   /**
