@@ -106,9 +106,9 @@
      */
     retry: function() {
       this.abort();
-
       var recogHandlers = this.router.recognizer.handlersFor(this.targetName),
-          newTransition = performTransition(this.router, recogHandlers, this.providedModelsArray, this.params, this.data);
+          handlerInfos  = generateHandlerInfosWithQueryParams(recogHandlers, this.queryParams),
+          newTransition = performTransition(this.router, handlerInfos, this.providedModelsArray, this.params, this.queryParams, this.data);
 
       return newTransition;
     },
@@ -486,21 +486,53 @@
   /**
     @private
   */
+
+  function generateHandlerInfosWithQueryParams(handlers, queryParams) {
+    var handlerInfos = [];
+
+    for (var i = 0; i < handlers.length; i++) {
+      var handler = handlers[i],
+        handlerInfo = { handler: handler.handler, names: handler.names },
+        activeQueryParams = {};
+      if (queryParams && handler.queryParams) {
+        for (var j=0; j < handler.queryParams.length; j++) {
+          var queryParam = handler.queryParams[j], value;
+
+          if (value = queryParams[queryParam]) {
+            activeQueryParams[queryParam] = value;
+          }
+        }
+        handlerInfo.queryParams = activeQueryParams;
+      }
+      handlerInfos.push(handlerInfo);
+    }
+
+    return handlerInfos;
+  }
+
+  /**
+    @private
+  */
   function createNamedTransition(router, args) {
-    var handlers = router.recognizer.handlersFor(args[0]);
+    var partitionedArgs     = partitionQueryParams(args),
+      args                  = partitionedArgs[0],
+      queryParams           = partitionedArgs[1],
+      handlers              = router.recognizer.handlersFor(args[0]),
+      handlerInfos          = generateHandlerInfosWithQueryParams(handlers, queryParams);
+
 
     log(router, "Attempting transition to " + args[0]);
 
-    return performTransition(router, handlers, slice.call(args, 1), router.currentParams);
+    return performTransition(router, handlerInfos, slice.call(args, 1), router.currentParams, queryParams);
   }
 
   /**
     @private
   */
   function createURLTransition(router, url) {
-
     var results = router.recognizer.recognize(url),
-        currentHandlerInfos = router.currentHandlerInfos;
+        currentHandlerInfos = router.currentHandlerInfos,
+        queryParams = {};
 
     log(router, "Attempting URL transition to " + url);
 
@@ -508,7 +540,14 @@
       return errorTransition(router, new Router.UnrecognizedURLError(url));
     }
 
-    return performTransition(router, results, [], {});
+    for(var i = 0; i < results.length; i++) {
+      var currentParams = results[i].queryParams;
+      if ( currentParams ) {
+        merge(queryParams, currentParams);
+      }
+    }
+
+    return performTransition(router, results, [], {}, queryParams);
   }
 
 
@@ -734,12 +773,30 @@
     if (handler.contextDidChange) { handler.contextDidChange(); }
   }
 
+
+  /**
+    @private
+
+    Extracts query params from the end of an array
+  **/
+
+  function partitionQueryParams(array) {
+    var len = (array && array.length), head, queryParams;
+
+    if(len && len > 0 && (queryParams = array[len - 1].queryParams)) {
+      head = slice.call(array, 0, len - 1);
+      return [head, queryParams];
+    } else {
+      return [array, null];
+    }
+  }
+
   /**
     @private
 
     Creates, begins, and returns a Transition.
    */
-  function performTransition(router, recogHandlers, providedModelsArray, params, data) {
+  function performTransition(router, recogHandlers, providedModelsArray, params, queryParams, data) {
 
     var matchPointResults = getMatchPoint(router, recogHandlers, providedModelsArray, params),
         targetName = recogHandlers[recogHandlers.length - 1].handler,
@@ -763,6 +820,7 @@
     transition.providedModelsArray = providedModelsArray;
     transition.params = matchPointResults.params;
     transition.data = data || {};
+    transition.queryParams = queryParams;
     router.activeTransition = transition;
 
     var handlerInfos = generateHandlerInfos(router, recogHandlers);
@@ -1080,7 +1138,7 @@
     if (name.charAt(0) === '/') {
       return createURLTransition(router, name);
     } else {
-      return createNamedTransition(router, args);
+      return createNamedTransition(router, slice.call(args));
     }
   }
 

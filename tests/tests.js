@@ -209,6 +209,194 @@ asyncTest("when transitioning with the same context, setup should only be called
   }, shouldNotHappen);
 });
 
+asyncTest("when transitioning with the same query params, setup should only be called once", function() {
+  var parentSetupCount = 0,
+      childSetupCount = 0;
+
+  var context = { id: 1 };
+
+  router = new Router();
+
+  router.map(function(match) {
+    match("/").to('index').withQueryParams('sort', 'direction');
+    match("/posts/:id").to('post', function(match) {
+      match("/details").to('postDetails').withQueryParams('expandedPane', 'author');
+    });
+  });
+
+  router.getHandler = function(name) {
+    return handlers[name];
+  };
+
+  router.updateURL = function() {};
+
+  var indexHandler = {
+    setup: function(transition, queryParams) {
+      deepEqual(queryParams, {sort: 'author'}, 'index should have sort param');
+    },
+
+    model: function(params, transition, queryParams) {
+      deepEqual(queryParams, {sort: 'author'}, 'index should have sort param');
+    }
+
+  };
+
+  var postHandler = {
+    setup: function(transition, queryParams) {
+      ok(!queryParams, "Post should not have query params");
+      parentSetupCount++;
+    },
+
+    model: function(params, transition, queryParams) {
+      ok(!queryParams, "Post should not have query params");
+      return params;
+    }
+  };
+
+  var postDetailsHandler = {
+    setup: function(transition, queryParams) {
+      childSetupCount++;
+      deepEqual(queryParams, {expandedPane: 'related'}, 'postDetails should have expandedPane param');
+    },
+
+    model: function(params, transition, queryParams) {
+      deepEqual(queryParams, {expandedPane: 'related'}, 'postDetails should have expandedPane param');
+    }
+  };
+
+  handlers = {
+    index: indexHandler,
+    post: postHandler,
+    postDetails: postDetailsHandler
+  };
+
+  router.handleURL('/?sort=author').then(function() {
+    equal(parentSetupCount, 0, 'precond - parent not setup');
+    equal(childSetupCount, 0, 'precond - parent not setup');
+
+    return router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'related'}});
+  }, shouldNotHappen).then(function() {
+    equal(parentSetupCount, 1, 'after one transition parent is setup once');
+    equal(childSetupCount, 1, 'after one transition child is setup once');
+
+    return router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'related'}});
+  }, shouldNotHappen).then(function() {
+    equal(parentSetupCount, 1, 'after two transitions, parent is still setup once');
+    equal(childSetupCount, 1, 'after two transitions, child is still setup once');
+    start();
+  }, shouldNotHappen);
+});
+
+asyncTest("retrying should work with queryParams", function () {
+  expect(1);
+  var context = { id: 1 };
+  var shouldAbort = true;
+
+  router = new Router();
+
+  router.map(function(match) {
+    match("/").to('index').withQueryParams('sort', 'direction');
+    match("/posts/:id").to('post', function(match) {
+      match("/details").to('postDetails').withQueryParams('expandedPane', 'author');
+    });
+  });
+
+  router.getHandler = function(name) {
+    return handlers[name];
+  };
+
+  router.updateURL = function() {};
+
+  var indexHandler = {
+    setup: function(transition, queryParams) {
+    }
+  };
+
+  var postHandler = {
+    beforeModel: function(transition) {
+      args = arguments;
+      if(shouldAbort) {
+        shouldAbort = false;
+        transition.abort();
+        transition.retry();
+      }
+    }
+  };
+
+  var postDetailsHandler = {
+    setup: function(transition, queryParams) {
+      deepEqual(queryParams, {expandedPane: 'related'}, 'postDetails should have expandedPane param');
+      start();
+    }
+  };
+
+  handlers = {
+    index: indexHandler,
+    post: postHandler,
+    postDetails: postDetailsHandler
+  };
+
+  router.handleURL('/').then(function() {
+    return router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'related'}});
+  });
+});
+
+
+asyncTest("retrying should work with queryParams and a URL transition", function () {
+  expect(1);
+  var context = { id: 1 };
+  var shouldAbort = true;
+
+  router = new Router();
+
+  router.map(function(match) {
+    match("/").to('index').withQueryParams('sort', 'direction');
+    match("/posts/:id").to('post', function(match) {
+      match("/details").to('postDetails').withQueryParams('expandedPane', 'author');
+    });
+  });
+
+  router.getHandler = function(name) {
+    return handlers[name];
+  };
+
+  router.updateURL = function() {};
+
+  var indexHandler = {
+    setup: function(transition, queryParams) {
+    }
+  };
+
+  var postHandler = {
+    beforeModel: function(transition) {
+      args = arguments;
+      if(shouldAbort) {
+        shouldAbort = false;
+        transition.abort();
+        transition.retry();
+      }
+    }
+  };
+
+  var postDetailsHandler = {
+    setup: function(transition, queryParams) {
+      deepEqual(queryParams, {expandedPane: 'related'}, 'postDetails should have expandedPane param');
+      start();
+    }
+  };
+
+  handlers = {
+    index: indexHandler,
+    post: postHandler,
+    postDetails: postDetailsHandler
+  };
+
+  router.handleURL('/').then(function() {
+    return router.transitionTo('/posts/1/details?expandedPane=related');
+  });
+});
+
+
 asyncTest("when transitioning to a new parent and child state, the parent's context should be available to the child's model", function() {
   var contexts = [];
 
