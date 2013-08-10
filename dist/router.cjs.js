@@ -515,7 +515,7 @@ function generateHandlerInfosWithQueryParams(handlers, queryParams) {
   @private
 */
 function createNamedTransition(router, args) {
-  var partitionedArgs     = partitionQueryParams(args),
+  var partitionedArgs     = extractQueryParams(args),
     args                  = partitionedArgs[0],
     queryParams           = partitionedArgs[1],
     handlers              = router.recognizer.handlersFor(args[0]),
@@ -667,6 +667,29 @@ function eachHandler(handlerInfos, callback) {
 /**
   @private
 
+  determines if two queryparam objects are the same or not
+**/
+function queryParamsEqual(a, b) {
+  a = a || {};
+  b = b || {};
+  var checkedKeys = [];
+  for(var key in a) {
+    if (!a.hasOwnProperty(key)) { continue; }
+    if(b[key] !== a[key]) { return false }
+    checkedKeys.push(key);
+  }
+  for(var key in b) {
+    if (!b.hasOwnProperty(key)) { continue; }
+    if (~checkedKeys.indexOf(key)) { continue; }
+    // b has a key not in a
+    return false;
+  }
+  return true;
+}
+
+/**
+  @private
+
   This function is called when transitioning from one URL to
   another to determine which handlers are not longer active,
   which handlers are newly active, and which handlers remain
@@ -713,19 +736,21 @@ function partitionHandlers(oldHandlers, newHandlers) {
         unchanged: []
       };
 
-  var handlerChanged, contextChanged, i, l;
+  var handlerChanged, contextChanged, queryParamsChanged, i, l;
 
   for (i=0, l=newHandlers.length; i<l; i++) {
     var oldHandler = oldHandlers[i], newHandler = newHandlers[i];
 
     if (!oldHandler || oldHandler.handler !== newHandler.handler) {
       handlerChanged = true;
+    } else if (!queryParamsEqual(oldHandler.queryParams, newHandler.queryParams)) {
+      queryParamsChanged = true;
     }
 
     if (handlerChanged) {
       handlers.entered.push(newHandler);
       if (oldHandler) { handlers.exited.unshift(oldHandler); }
-    } else if (contextChanged || oldHandler.context !== newHandler.context) {
+    } else if (contextChanged || oldHandler.context !== newHandler.context || queryParamsChanged) {
       contextChanged = true;
       handlers.updatedContext.push(newHandler);
     } else {
@@ -781,7 +806,7 @@ function setContext(handler, context) {
   Extracts query params from the end of an array
 **/
 
-function partitionQueryParams(array) {
+function extractQueryParams(array) {
   var len = (array && array.length), head, queryParams;
 
   if(len && len > 0 && (queryParams = array[len - 1].queryParams)) {
@@ -944,6 +969,7 @@ function finalizeTransition(transition, handlerInfos) {
   transition.providedModelsArray = [];
   transition.providedContexts = {};
   router.currentParams = params;
+  router.currentQueryParams = transition.queryParams;
 
   var urlMethod = transition.urlMethod;
   if (urlMethod) {

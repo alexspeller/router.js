@@ -209,6 +209,102 @@ asyncTest("when transitioning with the same context, setup should only be called
   }, shouldNotHappen);
 });
 
+asyncTest("when transitioning with different query params, setup should be called twice", function() {
+  var parentSetupCount = 0,
+      childSetupCount = 0,
+      childModelCount = 0;
+
+  var context = { id: 1 };
+
+  router = new Router();
+
+  router.map(function(match) {
+    match("/").to('index');
+    match("/posts/:id").to('post', function(match) {
+      match("/details").to('postDetails').withQueryParams('expandedPane', 'author');
+    }).withQueryParams('sort');
+  });
+
+  router.getHandler = function(name) {
+    return handlers[name];
+  };
+
+  router.updateURL = function() {};
+
+  var indexHandler = {
+    setup: function(transition, queryParams) {
+      ok(!queryParams, "Index should not have query params");
+    },
+
+    model: function(params, transition, queryParams) {
+      ok(!queryParams, "Index should not have query params");
+    }
+
+  };
+
+  var postHandler = {
+    setup: function(transition, queryParams) {
+      if(parentSetupCount === 0) {
+        deepEqual(queryParams, {}, "Post should not have query params");
+      } else if (parentSetupCount === 1) {
+        deepEqual(queryParams, {sort: 'name'}, 'Post should have sort param');
+      }
+      parentSetupCount++;
+    },
+
+    model: function(params, transition, queryParams) {
+      return params;
+    }
+  };
+
+  var postDetailsHandler = {
+    setup: function(transition, queryParams) {
+      var paramValue = childSetupCount === 0 ? 'related' : 'author';
+      deepEqual(queryParams, {expandedPane: paramValue}, 'postDetails should have expandedPane param');
+      childSetupCount++;
+    },
+
+    model: function(params, transition, queryParams) {
+      var paramValue = childModelCount === 0 ? 'related' : 'author';
+      deepEqual(queryParams, {expandedPane: paramValue}, 'postDetails should have expandedPane param');
+      childModelCount++;
+    }
+  };
+
+  handlers = {
+    index: indexHandler,
+    post: postHandler,
+    postDetails: postDetailsHandler
+  };
+
+  router.handleURL('/').then(function() {
+    equal(parentSetupCount, 0, 'precond - parent not setup');
+    equal(childSetupCount, 0, 'precond - child not setup');
+    equal(childModelCount, 0, 'precond - child not modelled');
+
+    return router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'related'}});
+  }, shouldNotHappen).then(function() {
+    equal(parentSetupCount, 1, 'after one transition parent is setup once');
+    equal(childSetupCount, 1, 'after one transition child is setup once');
+    equal(childModelCount, 1, 'after one transition child is modelled once');
+
+    return router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'author'}});
+  }, shouldNotHappen).then(function() {
+    equal(parentSetupCount, 1, 'after two transitions, parent is setup once');
+    equal(childSetupCount, 2, 'after two transitions, child is setup twice');
+    equal(childModelCount, 2, 'after two transitions, child is modelled twice');
+
+    return router.transitionTo('postDetails', context, {queryParams: {sort: 'name', expandedPane: 'author'}});
+  }, shouldNotHappen).then(function() {
+    equal(parentSetupCount, 2, 'after three transitions, parent is setup twice');
+    equal(childSetupCount, 3, 'after three transitions, child is setup thrice');
+    equal(childModelCount, 3, 'after three transitions, child is modelled thrice');
+
+
+    start();
+  }, shouldNotHappen);
+});
+
 asyncTest("when transitioning with the same query params, setup should only be called once", function() {
   var parentSetupCount = 0,
       childSetupCount = 0;
