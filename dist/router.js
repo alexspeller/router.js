@@ -830,7 +830,7 @@
 
     // Check if there's already a transition underway.
     if (router.activeTransition) {
-      if (transitionsIdentical(router.activeTransition, targetName, providedModelsArray)) {
+      if (transitionsIdentical(router.activeTransition, targetName, providedModelsArray, queryParams)) {
         return router.activeTransition;
       }
       router.activeTransition.abort();
@@ -928,7 +928,7 @@
   /**
     @private
    */
-  function transitionsIdentical(oldTransition, targetName, providedModelsArray) {
+  function transitionsIdentical(oldTransition, targetName, providedModelsArray, queryParams) {
 
     if (oldTransition.targetName !== targetName) { return false; }
 
@@ -938,6 +938,11 @@
     for (var i = 0, len = oldModels.length; i < len; ++i) {
       if (oldModels[i] !== providedModelsArray[i]) { return false; }
     }
+
+    if(!queryParamsEqual(oldTransition.queryParams, queryParams)) {
+      return false;
+    }
+
     return true;
   }
 

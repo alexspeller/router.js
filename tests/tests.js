@@ -209,7 +209,7 @@ asyncTest("when transitioning with the same context, setup should only be called
   }, shouldNotHappen);
 });
 
-asyncTest("when transitioning with different query params, setup should be called twice", function() {
+asyncTest("setup should be called when query params change", function() {
   var parentSetupCount = 0,
       childSetupCount = 0,
       childModelCount = 0;
@@ -434,6 +434,53 @@ asyncTest("retrying should work with queryParams", function () {
 
   router.handleURL('/').then(function() {
     return router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'related'}});
+  });
+});
+
+asyncTest("query params should be considered to decide if a transition is identical", function () {
+  expect(3);
+  var context = { id: 1 };
+
+  router = new Router();
+
+  router.map(function(match) {
+    match("/").to('index').withQueryParams('sort', 'direction');
+    match("/posts/:id").to('post', function(match) {
+      match("/details").to('postDetails').withQueryParams('expandedPane', 'author');
+    });
+  });
+
+  router.getHandler = function(name) {
+    return handlers[name];
+  };
+
+  router.updateURL = function() {};
+
+  var indexHandler = {};
+
+  var postHandler = {};
+
+  var postDetailsHandler = {};
+
+  handlers = {
+    index: indexHandler,
+    post: postHandler,
+    postDetails: postDetailsHandler
+  };
+
+  router.handleURL('/').then(function() {
+    var firstTransition  = router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'related'}});
+    var secondTransition = router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'related'}});
+    equal(firstTransition, secondTransition);
+    return secondTransition;
+  }, shouldNotHappen).then(function () {
+    var firstTransition  = router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'related'}});
+    var secondTransition = router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'author'}});
+    notEqual(firstTransition, secondTransition);
+    ok(firstTransition.isAborted, "The first transition should be aborted");
+    return secondTransition;
+  }, shouldNotHappen).then(function () {
+    start();
   });
 });
 
