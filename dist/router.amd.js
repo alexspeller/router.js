@@ -279,8 +279,9 @@ define("router",
         @param {Array[Object]} contexts
         @return {Object} a serialized parameter hash
       */
-      paramsForHandler: function(handlerName, callback) {
-        return paramsForHandler(this, handlerName, slice.call(arguments, 1));
+      paramsForHandler: function(handlerName) {
+        var partitionedArgs = extractQueryParams(slice.call(arguments, 1));
+        return paramsForHandler(this, handlerName, partitionedArgs[0], partitionedArgs[1]);
       },
 
       /**
@@ -294,7 +295,8 @@ define("router",
         @return {String} a URL
       */
       generate: function(handlerName) {
-        var params = paramsForHandler(this, handlerName, slice.call(arguments, 1));
+        var partitionedArgs = extractQueryParams(slice.call(arguments, 1));
+        var params = paramsForHandler(this, handlerName, partitionedArgs[0], partitionedArgs[1]);
         return this.recognizer.generate(handlerName, params);
       },
 
@@ -351,7 +353,7 @@ define("router",
       a shared pivot parent route and other data necessary to perform
       a transition.
      */
-    function getMatchPoint(router, handlers, objects, inputParams) {
+    function getMatchPoint(router, handlers, objects, inputParams, queryParams) {
 
       var matchPoint = handlers.length,
           providedModels = {}, i,
@@ -406,6 +408,28 @@ define("router",
           }
         }
 
+        // If there is an old handler, see if query params are the same. If there isn't an old handler,
+        // hasChanged will already be true here
+        if(oldHandlerInfo && !queryParamsEqual(oldHandlerInfo.queryParams, handlerObj.queryParams)) {
+          var newQueryParams = {};
+
+          // Query params are sticky, so merge together old and new for comparison
+          if(oldHandlerInfo.queryParams) {
+            merge(newQueryParams, oldHandlerInfo.queryParams);
+            merge(newQueryParams, handlerObj.queryParams);
+          } else {
+            newQueryParams = handlerObj.queryParams;
+          }
+
+          // if the old and new after merging aren't the same, then the query params
+          // really have changed.
+          if (!queryParamsEqual(oldHandlerInfo.queryParams, newQueryParams)) {
+            hasChanged = true;
+            handlerObj.queryParams = newQueryParams;
+          }
+
+        }
+
         if (hasChanged) { matchPoint = i; }
       }
 
@@ -450,11 +474,12 @@ define("router",
       @param {Array[Object]} objects
       @return {Object} a serialized parameter hash
     */
-    function paramsForHandler(router, handlerName, objects) {
+    function paramsForHandler(router, handlerName, objects, queryParams) {
 
       var handlers = router.recognizer.handlersFor(handlerName),
           params = {},
-          matchPoint = getMatchPoint(router, handlers, objects).matchPoint,
+          handlerInfos = generateHandlerInfosWithQueryParams(handlers, queryParams),
+          matchPoint = getMatchPoint(router, handlerInfos, objects).matchPoint,
           object, handlerObj, handler, names, i;
 
       for (i=0; i<handlers.length; i++) {
@@ -494,7 +519,7 @@ define("router",
 
       for (var i = 0; i < handlers.length; i++) {
         var handler = handlers[i],
-          handlerInfo = { handler: handler.handler, names: handler.names },
+          handlerInfo = { handler: handler.handler, names: handler.names, context: handler.context, isDynamic: handler.isDynamic },
           activeQueryParams = {};
         if (queryParams && handler.queryParams) {
           for (var j=0; j < handler.queryParams.length; j++) {
@@ -543,10 +568,7 @@ define("router",
       }
 
       for(var i = 0; i < results.length; i++) {
-        var currentParams = results[i].queryParams;
-        if ( currentParams ) {
-          merge(queryParams, currentParams);
-        }
+        merge(queryParams, results[i].queryParams);
       }
 
       return performTransition(router, results, [], {}, queryParams);
@@ -633,6 +655,7 @@ define("router",
         checkAbort(transition);
 
         setContext(handler, context);
+        setQueryParams(handler, handlerInfo.queryParams);
 
         if (handler.setup) { handler.setup(context, handlerInfo.queryParams); }
         checkAbort(transition);
@@ -800,6 +823,11 @@ define("router",
       if (handler.contextDidChange) { handler.contextDidChange(); }
     }
 
+    function setQueryParams(handler, queryParams) {
+      handler.queryParams = queryParams;
+      if (handler.queryParamsDidChange) { handler.queryParamsDidChange(); }
+    }
+
 
     /**
       @private
@@ -825,7 +853,7 @@ define("router",
      */
     function performTransition(router, recogHandlers, providedModelsArray, params, queryParams, data) {
 
-      var matchPointResults = getMatchPoint(router, recogHandlers, providedModelsArray, params),
+      var matchPointResults = getMatchPoint(router, recogHandlers, providedModelsArray, params, queryParams),
           targetName = recogHandlers[recogHandlers.length - 1].handler,
           wasTransitioning = false,
           currentHandlerInfos = router.currentHandlerInfos;
@@ -970,7 +998,7 @@ define("router",
         }
       }
 
-      var params = paramsForHandler(router, handlerName, objects);
+      var params = paramsForHandler(router, handlerName, objects, transition.queryParams);
 
       transition.providedModelsArray = [];
       transition.providedContexts = {};
@@ -1122,7 +1150,6 @@ define("router",
       or use one of the models provided to `transitionTo`.
      */
     function getModel(handlerInfo, transition, handlerParams, needsUpdate) {
-
       var handler = handlerInfo.handler,
           handlerName = handlerInfo.name;
 
@@ -1134,7 +1161,6 @@ define("router",
         var providedModel = transition.providedModels[handlerName];
         return typeof providedModel === 'function' ? providedModel() : providedModel;
       }
-
       return handler.model && handler.model(handlerParams || {}, transition, handlerInfo.queryParams);
     }
 
