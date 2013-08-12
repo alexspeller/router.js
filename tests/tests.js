@@ -210,7 +210,7 @@ asyncTest("when transitioning with the same context, setup should only be called
 });
 
 asyncTest("setup should be called when query params change", function() {
-  expect(35);
+  expect(39);
 
   var parentModelCount = 0,
       parentSetupCount = 0,
@@ -323,6 +323,13 @@ asyncTest("setup should be called when query params change", function() {
     equal(parentModelCount, 2, 'after four transitions, parent is modelled twice');
     equal(childSetupCount, 3, 'after four transitions, child is setup thrice');
     equal(childModelCount, 3, 'after four transitions, child is modelled thrice');
+
+    return router.transitionTo('postDetails', {queryParams: {sort: 'name'}});
+  }, shouldNotHappen).then(function() {
+    equal(parentSetupCount, 2, 'after five transitions, parent is setup twice');
+    equal(parentModelCount, 2, 'after five transitions, parent is modelled twice');
+    equal(childSetupCount, 3, 'after five transitions, child is setup thrice');
+    equal(childModelCount, 3, 'after five transitions, child is modelled thrice');
 
     start();
   }, shouldNotHappen);
