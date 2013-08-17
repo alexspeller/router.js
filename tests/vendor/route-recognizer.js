@@ -411,6 +411,8 @@
         }
       }
 
+      if (pairs.length == 0) { return ''; }
+
       return "?" + pairs.join("&");
     },
 

@@ -210,7 +210,7 @@ asyncTest("when transitioning with the same context, setup should only be called
 });
 
 asyncTest("setup should be called when query params change", function() {
-  expect(39);
+  expect(43);
 
   var parentModelCount = 0,
       parentSetupCount = 0,
@@ -266,6 +266,10 @@ asyncTest("setup should be called when query params change", function() {
       }
       parentModelCount++;
       return context;
+    },
+
+    serialize: function (model) {
+      return {id: model.id};
     }
   };
 
@@ -302,6 +306,14 @@ asyncTest("setup should be called when query params change", function() {
     equal(childSetupCount, 1, 'after one transition child is setup once');
     equal(childModelCount, 1, 'after one transition child is modelled once');
 
+    equal(router.generate('postDetails'), "/posts/1/details?expandedPane=related", "Query params are sticky");
+    equal(router.generate('postDetails', {queryParams: {expandedPane: 'author'}}), "/posts/1/details?expandedPane=author", "Query params are overridable");
+    equal(router.generate('index'), "/", 'Query params only sticky to routes that observe them');
+
+    throws(function() {
+      router.generate('index', {queryParams: {foo: 'bar'}})
+    });
+
     return router.transitionTo('postDetails', {queryParams: {expandedPane: 'author'}});
   }, shouldNotHappen).then(function() {
     equal(parentSetupCount, 1, 'after two transitions, parent is setup once');
@@ -311,7 +323,8 @@ asyncTest("setup should be called when query params change", function() {
 
     return router.transitionTo('postDetails');
   }, shouldNotHappen).then(function() {
-    // transitioning again without query params should assume old query params
+    // transitioning again without query params should assume old query params, so the handlers
+    // shouldn't be called again
     equal(parentSetupCount, 1, 'after three transitions, parent is setup once');
     equal(parentModelCount, 1, 'after three transitions parent is modelled once');
     equal(childSetupCount, 2, 'after three transitions, child is setup twice');
@@ -334,6 +347,8 @@ asyncTest("setup should be called when query params change", function() {
     start();
   }, shouldNotHappen);
 });
+
+
 
 asyncTest("when transitioning with the same query params, setup should only be called once", function() {
   var parentSetupCount = 0,

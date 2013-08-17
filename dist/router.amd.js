@@ -480,7 +480,10 @@ define("router",
           params = {},
           handlerInfos = generateHandlerInfosWithQueryParams(handlers, queryParams),
           matchPoint = getMatchPoint(router, handlerInfos, objects).matchPoint,
+          mergedQueryParams = {},
           object, handlerObj, handler, names, i;
+
+      params.queryParams = {};
 
       for (i=0; i<handlers.length; i++) {
         handlerObj = handlers[i];
@@ -500,7 +503,26 @@ define("router",
           // Serialize to generate params
           merge(params, serialize(handler, object, names));
         }
+
+        var handlerQueryParams = handlerObj.queryParams || [];
+
+        for(var j = 0; j < handlerQueryParams.length; j++) {
+          var key = handlerQueryParams[j], value;
+
+          value = router.currentQueryParams && router.currentQueryParams[key];
+
+          if(value) { params.queryParams[key] = value; }
+        }
       }
+
+      merge(params.queryParams, queryParams);
+
+      var queryParamCount = 0;
+
+      for (var key in params.queryParams) {
+        if (params.queryParams.hasOwnProperty(key)) { queryParamCount += 1; }
+      }
+      if (queryParamCount === 0) { delete params.queryParams; }
       return params;
     }
 
