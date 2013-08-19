@@ -12,7 +12,7 @@ module("The router", {
       match("/about").to("about");
       match("/faq").to("faq");
       match("/posts", function(match) {
-        match("/:id").to("showPost");
+        match("/:id").to("showPost").withQueryParams('foo', 'bar');
         match("/admin/:id").to("admin", function(match) {
           match("/posts").to("adminPosts");
           match("/posts/:post_id").to("adminPost");
@@ -210,7 +210,7 @@ asyncTest("when transitioning with the same context, setup should only be called
 });
 
 asyncTest("setup should be called when query params change", function() {
-  expect(43);
+  expect(44);
 
   var parentModelCount = 0,
       parentSetupCount = 0,
@@ -311,8 +311,12 @@ asyncTest("setup should be called when query params change", function() {
     equal(router.generate('index'), "/", 'Query params only sticky to routes that observe them');
 
     throws(function() {
-      router.generate('index', {queryParams: {foo: 'bar'}})
-    });
+      router.generate('index', {queryParams: {foo: 'bar'}});
+    }, 'You supplied the query params "foo=bar" which are not valid for the "index" handler or its parents', "should throw correct error for one wrong param");
+
+    throws(function() {
+      router.generate('index', {queryParams: {foo: 'bar', baz: 'qux'}});
+    }, 'You supplied the params "foo=bar" and "baz=qux" which are not valid for the "index" handler or its parents', "should throw correct error for one wrong param");
 
     return router.transitionTo('postDetails', {queryParams: {expandedPane: 'author'}});
   }, shouldNotHappen).then(function() {
@@ -1362,6 +1366,34 @@ test("paramsForHandler returns params", function() {
   deepEqual(router.paramsForHandler('showPost', post), { id: 12 }, "The correct parameters were retrieved with a context object");
   deepEqual(router.paramsForHandler('showPost', 12),   { id: 12 }, "The correct parameters were retrieved with a numeric id");
   deepEqual(router.paramsForHandler('showPost', "12"), { id: "12" }, "The correct parameters were retrieved with a string id");
+});
+
+test("paramsForHandler returns query params", function() {
+  var post = { id: 12 };
+
+  var showPostHandler = {
+    serialize: function(object) {
+      return { id: object.id };
+    },
+
+    model: function(params) {
+      equal(params.id, 12, "The parameters are correct");
+      return post;
+    }
+  };
+
+  handlers = { showPost: showPostHandler };
+
+  deepEqual(router.paramsForHandler('showPost', post, {queryParams: {foo: 1}}), { id: 12, queryParams: {foo: 1} }, "The correct query params are retrieved");
+  deepEqual(router.paramsForHandler('showPost', post, {queryParams: {baz: 1}}), { id: 12 }, "Only params for the current handler are retrieved");
+  router.currentQueryParams = {foo: 2}
+  deepEqual(router.paramsForHandler('showPost', post), { id: 12, queryParams: {foo: 2} }, "Current params are used when present");
+  deepEqual(router.paramsForHandler('showPost', post, {queryParams: {foo: 3}}), { id: 12, queryParams: {foo: 3} }, "the current query params are overridable");
+  deepEqual(router.paramsForHandler('showPost', post, {queryParams: {foo: 0}}), { id: 12, queryParams: {foo: 0} }, "the current query params are overridable with falsy 0");
+  deepEqual(router.paramsForHandler('showPost', post, {queryParams: {foo: false}}), { id: 12 }, "the current query params are cancellable with false");
+  deepEqual(router.paramsForHandler('showPost', post, {queryParams: {foo: null}}), { id: 12 }, "the current query params are cancellable with null");
+  deepEqual(router.paramsForHandler('showPost', post, {queryParams: {foo: undefined}}), { id: 12 }, "the current query params are cancellable with undefined");
+  router.currentQueryParams = null
 });
 
 asyncTest("when leaving a handler, the context is nulled out", function() {
