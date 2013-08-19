@@ -117,11 +117,11 @@ asyncTest("Handling a URL passes in query params", function() {
 
   var indexHandler = {
     model: function(params, transition, queryParams) {
-      deepEqual(queryParams, { sort: 'date', filter: 'name' });
+      deepEqual(queryParams, { sort: 'date', filter: true });
     },
 
     setup: function(object, queryParams) {
-      deepEqual(queryParams, { sort: 'date', filter: 'name' });
+      deepEqual(queryParams, { sort: 'date', filter: true });
     }
   };
 
@@ -130,7 +130,7 @@ asyncTest("Handling a URL passes in query params", function() {
     index: indexHandler
   };
 
-  router.handleURL("/index?sort=date&filter=name").then(start, shouldNotHappen);
+  router.handleURL("/index?sort=date&filter").then(start, shouldNotHappen);
 });
 
 asyncTest("handleURL accepts slash-less URLs", function() {
