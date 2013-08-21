@@ -334,7 +334,8 @@ asyncTest("setup should be called when query params change", function() {
     equal(childSetupCount, 2, 'after three transitions, child is setup twice');
     equal(childModelCount, 2, 'after three transitions, child is modelled twice');
 
-    return router.transitionTo('postDetails', {queryParams: {sort: 'name', expandedPane: 'author'}});
+    // not providing a route name should assume the current route
+    return router.transitionTo({queryParams: {sort: 'name', expandedPane: 'author'}});
   }, shouldNotHappen).then(function() {
     equal(parentSetupCount, 2, 'after four transitions, parent is setup twice');
     equal(parentModelCount, 2, 'after four transitions, parent is modelled twice');

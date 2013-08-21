@@ -583,6 +583,19 @@
   /**
     @private
   */
+  function createQueryParamTransition(router, queryParams) {
+    var currentHandlers = router.currentHandlerInfos,
+        currentHandler = currentHandlers[currentHandlers.length - 1],
+        name = currentHandler.name;
+
+    log(router, "Attempting query param transition");
+
+    return createNamedTransition(router, [name, queryParams]);
+  }
+
+  /**
+    @private
+  */
   function createNamedTransition(router, args) {
     var partitionedArgs     = extractQueryParams(args),
       args                  = partitionedArgs[0],
@@ -1237,7 +1250,9 @@
     // Normalize blank transitions to root URL transitions.
     var name = args[0] || '/';
 
-    if (name.charAt(0) === '/') {
+    if(args.length === 1 && args[0].queryParams) {
+      return createQueryParamTransition(router, args[0]);
+    } else if (name.charAt(0) === '/') {
       return createURLTransition(router, name);
     } else {
       return createNamedTransition(router, slice.call(args));
