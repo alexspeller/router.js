@@ -1157,7 +1157,7 @@ define("router",
 
         log(router, seq, handlerName + ": calling beforeModel hook");
 
-        var p = handler.beforeModel && handler.beforeModel(transition);
+        var p = handler.beforeModel && handler.beforeModel(transition, handlerInfo.queryParams);
         return (p instanceof Transition) ? null : p;
       }
 
@@ -1177,7 +1177,7 @@ define("router",
 
         transition.resolvedModels[handlerInfo.name] = context;
 
-        var p = handler.afterModel && handler.afterModel(context, transition);
+        var p = handler.afterModel && handler.afterModel(context, transition, handlerInfo.queryParams);
         return (p instanceof Transition) ? null : p;
       }
 

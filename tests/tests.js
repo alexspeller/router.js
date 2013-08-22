@@ -210,12 +210,16 @@ asyncTest("when transitioning with the same context, setup should only be called
 });
 
 asyncTest("setup should be called when query params change", function() {
-  expect(44);
+  expect(56);
 
-  var parentModelCount = 0,
-      parentSetupCount = 0,
-      childSetupCount = 0,
-      childModelCount = 0;
+  var parentBeforeModelCount      = 0,
+      parentModelCount            = 0,
+      parentAfterModelCount       = 0,
+      parentSetupCount            = 0,
+      childBeforeModelCount       = 0,
+      childModelCount             = 0,
+      childAfterModelCount        = 0,
+      childSetupCount             = 0;
 
   var context = { id: 1 };
 
@@ -235,27 +239,34 @@ asyncTest("setup should be called when query params change", function() {
   router.updateURL = function() {};
 
   var indexHandler = {
-    setup: function(object, queryParams) {
+    beforeModel: function (transition, queryParams) {
       ok(!queryParams, "Index should not have query params");
-      equal(object, context);
     },
 
     model: function(params, transition, queryParams) {
       ok(!queryParams, "Index should not have query params");
       return context;
+    },
+
+    afterModel: function (resolvedModel, transition, queryParams) {
+      ok(!queryParams, "Index should not have query params");
+    },
+
+    setup: function(object, queryParams) {
+      ok(!queryParams, "Index should not have query params");
+      equal(object, context);
     }
 
   };
 
   var postHandler = {
-    setup: function(object, queryParams) {
-      if(parentSetupCount === 0) {
+    beforeModel: function (transition, queryParams) {
+      if(parentBeforeModelCount === 0) {
         deepEqual(queryParams, {}, "Post should not have query params");
-      } else if (parentSetupCount === 1) {
+      } else if (parentBeforeModelCount === 1) {
         deepEqual(queryParams, {sort: 'name'}, 'Post should have sort param');
       }
-      equal(object, context);
-      parentSetupCount++;
+      parentBeforeModelCount++;
     },
 
     model: function(params, transition, queryParams) {
@@ -268,22 +279,55 @@ asyncTest("setup should be called when query params change", function() {
       return context;
     },
 
+    afterModel: function (resolvedModel, transition, queryParams) {
+      if(parentAfterModelCount === 0) {
+        deepEqual(queryParams, {}, "Post should not have query params");
+      } else if (parentAfterModelCount === 1) {
+        deepEqual(queryParams, {sort: 'name'}, 'Post should have sort param');
+      }
+      parentAfterModelCount++;
+
+    },
+
+    setup: function(object, queryParams) {
+      if(parentSetupCount === 0) {
+        deepEqual(queryParams, {}, "Post should not have query params");
+      } else if (parentSetupCount === 1) {
+        deepEqual(queryParams, {sort: 'name'}, 'Post should have sort param');
+      }
+      equal(object, context);
+      parentSetupCount++;
+    },
+
     serialize: function (model) {
       return {id: model.id};
     }
   };
 
   var postDetailsHandler = {
-    setup: function(transition, queryParams) {
-      var paramValue = childSetupCount === 0 ? 'related' : 'author';
+    beforeModel: function(transition, queryParams) {
+      var paramValue = childBeforeModelCount === 0 ? 'related' : 'author';
       deepEqual(queryParams, {expandedPane: paramValue}, 'postDetails should have expandedPane param');
-      childSetupCount++;
+      childBeforeModelCount++;
     },
 
     model: function(params, transition, queryParams) {
       var paramValue = childModelCount === 0 ? 'related' : 'author';
       deepEqual(queryParams, {expandedPane: paramValue}, 'postDetails should have expandedPane param');
       childModelCount++;
+    },
+
+    afterModel: function(resolvedModel, transition, queryParams) {
+      var paramValue = childAfterModelCount === 0 ? 'related' : 'author';
+      deepEqual(queryParams, {expandedPane: paramValue}, 'postDetails should have expandedPane param');
+      childAfterModelCount++;
+    },
+
+
+    setup: function(transition, queryParams) {
+      var paramValue = childSetupCount === 0 ? 'related' : 'author';
+      deepEqual(queryParams, {expandedPane: paramValue}, 'postDetails should have expandedPane param');
+      childSetupCount++;
     }
   };
 
