@@ -107,7 +107,7 @@
     retry: function() {
       this.abort();
       var recogHandlers = this.router.recognizer.handlersFor(this.targetName),
-          handlerInfos  = generateHandlerInfosWithQueryParams(recogHandlers, this.queryParams),
+          handlerInfos  = generateHandlerInfosWithQueryParams(router, recogHandlers, this.queryParams),
           newTransition = performTransition(this.router, handlerInfos, this.providedModelsArray, this.params, this.queryParams, this.data);
 
       return newTransition;
@@ -297,26 +297,28 @@
         suppliedParams = partitionedArgs[0],
         queryParams = partitionedArgs[1];
 
-      var params = paramsForHandler(this, handlerName, suppliedParams, queryParams);
+      var params = paramsForHandler(this, handlerName, suppliedParams, queryParams),
+        validQueryParams = queryParamsForHandler(this, handlerName);
 
-      if (!queryParamsEqual(queryParams, params.queryParams)) {
-        var missingParams = [];
+      var missingParams = [];
 
-        for (var key in queryParams) {
-          if (!params.queryParams.hasOwnProperty(key)) {
-            missingParams.push(key);
-          }
-        }
-        if (missingParams.length > 0) {
-          var err = 'You supplied the params ';
-          err += missingParams.map(function(param) {
-            return key + "=" + queryParams[key];
-          }).join(' and ');
-
-          err += 'which are not valid for the "' + handlerName + '" handler or its parents';
-          throw err;
+      for (var key in queryParams) {
+        if (queryParams.hasOwnProperty(key) && !~validQueryParams.indexOf(key)) {
+          missingParams.push(key);
         }
       }
+
+      if (missingParams.length > 0) {
+        var err = 'You supplied the params ';
+        err += missingParams.map(function(param) {
+          return '"' + param + "=" + queryParams[param] + '"';
+        }).join(' and ');
+
+        err += ' which are not valid for the "' + handlerName + '" handler or its parents';
+
+        throw new Error(err);
+      }
+
       return this.recognizer.generate(handlerName, params);
     },
 
@@ -431,23 +433,7 @@
       // If there is an old handler, see if query params are the same. If there isn't an old handler,
       // hasChanged will already be true here
       if(oldHandlerInfo && !queryParamsEqual(oldHandlerInfo.queryParams, handlerObj.queryParams)) {
-        var newQueryParams = {};
-
-        // Query params are sticky, so merge together old and new for comparison
-        if(oldHandlerInfo.queryParams) {
-          merge(newQueryParams, oldHandlerInfo.queryParams);
-          merge(newQueryParams, handlerObj.queryParams);
-        } else {
-          newQueryParams = handlerObj.queryParams;
-        }
-
-        // if the old and new after merging aren't the same, then the query params
-        // really have changed.
-        if (!queryParamsEqual(oldHandlerInfo.queryParams, newQueryParams)) {
           hasChanged = true;
-          handlerObj.queryParams = newQueryParams;
-        }
-
       }
 
       if (hasChanged) { matchPoint = i; }
@@ -483,6 +469,28 @@
     return (typeof object === "string" || object instanceof String || !isNaN(object));
   }
 
+
+
+  /**
+    @private
+
+    This method takes a handler name and returns a list of query params
+    that are valid to pass to the handler or its parents
+
+    @param {Router} router
+    @param {String} handlerName
+    @return {Array[String]} a list of query parameters
+  */
+  function queryParamsForHandler(router, handlerName) {
+    var handlers = router.recognizer.handlersFor(handlerName),
+      queryParams = [];
+
+    for (var i = 0; i < handlers.length; i++) {
+      queryParams.push.apply(queryParams, handlers[i].queryParams || []);
+    }
+
+    return queryParams;
+  }
   /**
     @private
 
@@ -498,7 +506,7 @@
 
     var handlers = router.recognizer.handlersFor(handlerName),
         params = {},
-        handlerInfos = generateHandlerInfosWithQueryParams(handlers, queryParams),
+        handlerInfos = generateHandlerInfosWithQueryParams(router, handlers, queryParams),
         matchPoint = getMatchPoint(router, handlerInfos, objects).matchPoint,
         mergedQueryParams = {},
         object, handlerObj, handler, names, i;
@@ -557,23 +565,22 @@
     @private
   */
 
-  function generateHandlerInfosWithQueryParams(handlers, queryParams) {
+  function generateHandlerInfosWithQueryParams(router, handlers, queryParams) {
     var handlerInfos = [];
 
     for (var i = 0; i < handlers.length; i++) {
       var handler = handlers[i],
         handlerInfo = { handler: handler.handler, names: handler.names, context: handler.context, isDynamic: handler.isDynamic },
         activeQueryParams = {};
-      if (queryParams && handler.queryParams) {
-        for (var j=0; j < handler.queryParams.length; j++) {
-          var queryParam = handler.queryParams[j], value;
 
-          if (value = queryParams[queryParam]) {
-            activeQueryParams[queryParam] = value;
-          }
-        }
+
+      mergeSomeKeys(activeQueryParams, router.currentQueryParams, handler.queryParams);
+      mergeSomeKeys(activeQueryParams, queryParams, handler.queryParams);
+
+      if (handler.queryParams && handler.queryParams.length > 0) {
         handlerInfo.queryParams = activeQueryParams;
       }
+
       handlerInfos.push(handlerInfo);
     }
 
@@ -601,7 +608,7 @@
       args                  = partitionedArgs[0],
       queryParams           = partitionedArgs[1],
       handlers              = router.recognizer.handlersFor(args[0]),
-      handlerInfos          = generateHandlerInfosWithQueryParams(handlers, queryParams);
+      handlerInfos          = generateHandlerInfosWithQueryParams(router, handlers, queryParams);
 
 
     log(router, "Attempting transition to " + args[0]);
@@ -1059,7 +1066,12 @@
     transition.providedModelsArray = [];
     transition.providedContexts = {};
     router.currentParams = params;
-    router.currentQueryParams = transition.queryParams;
+
+    var newQueryParams = {};
+    for (var i = handlerInfos.length - 1; i>=0; --i) {
+      merge(newQueryParams, handlerInfos[i].queryParams);
+    }
+    router.currentQueryParams = newQueryParams;
 
     var urlMethod = transition.urlMethod;
     if (urlMethod) {

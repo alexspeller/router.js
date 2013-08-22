@@ -210,7 +210,7 @@ asyncTest("when transitioning with the same context, setup should only be called
 });
 
 asyncTest("setup should be called when query params change", function() {
-  expect(56);
+  expect(62);
 
   var parentBeforeModelCount      = 0,
       parentModelCount            = 0,
@@ -338,6 +338,7 @@ asyncTest("setup should be called when query params change", function() {
   };
 
   router.transitionTo('index').then(function() {
+    deepEqual(router.currentQueryParams, {}, "Router has correct query params");
     equal(parentSetupCount, 0, 'precond - parent not setup');
     equal(parentModelCount, 0, 'precond - parent not modelled');
     equal(childSetupCount, 0, 'precond - child not setup');
@@ -345,6 +346,7 @@ asyncTest("setup should be called when query params change", function() {
 
     return router.transitionTo('postDetails', {queryParams: {expandedPane: 'related'}});
   }, shouldNotHappen).then(function() {
+    deepEqual(router.currentQueryParams, {expandedPane: 'related'}, "Router has correct query params");
     equal(parentSetupCount, 1, 'after one transition parent is setup once');
     equal(parentModelCount, 1, 'after one transition parent is modelled once');
     equal(childSetupCount, 1, 'after one transition child is setup once');
@@ -356,14 +358,15 @@ asyncTest("setup should be called when query params change", function() {
 
     throws(function() {
       router.generate('index', {queryParams: {foo: 'bar'}});
-    }, 'You supplied the query params "foo=bar" which are not valid for the "index" handler or its parents', "should throw correct error for one wrong param");
+    }, /You supplied the params "foo=bar" which are not valid for the "index" handler or its parents/, "should throw correct error for one wrong param");
 
     throws(function() {
       router.generate('index', {queryParams: {foo: 'bar', baz: 'qux'}});
-    }, 'You supplied the params "foo=bar" and "baz=qux" which are not valid for the "index" handler or its parents', "should throw correct error for one wrong param");
+    }, /You supplied the params "foo=bar" and "baz=qux" which are not valid for the "index" handler or its parents/, "should throw correct error for one wrong param");
 
     return router.transitionTo('postDetails', {queryParams: {expandedPane: 'author'}});
   }, shouldNotHappen).then(function() {
+    deepEqual(router.currentQueryParams, {expandedPane: 'author'}, "Router has correct query params");
     equal(parentSetupCount, 1, 'after two transitions, parent is setup once');
     equal(parentModelCount, 1, 'after two transitions parent is modelled once');
     equal(childSetupCount, 2, 'after two transitions, child is setup twice');
@@ -371,6 +374,7 @@ asyncTest("setup should be called when query params change", function() {
 
     return router.transitionTo('postDetails');
   }, shouldNotHappen).then(function() {
+    deepEqual(router.currentQueryParams, {expandedPane: 'author'}, "Router has correct query params");
     // transitioning again without query params should assume old query params, so the handlers
     // shouldn't be called again
     equal(parentSetupCount, 1, 'after three transitions, parent is setup once');
@@ -381,6 +385,7 @@ asyncTest("setup should be called when query params change", function() {
     // not providing a route name should assume the current route
     return router.transitionTo({queryParams: {sort: 'name', expandedPane: 'author'}});
   }, shouldNotHappen).then(function() {
+    deepEqual(router.currentQueryParams, {sort: 'name', expandedPane: 'author'}, "Router has correct query params");
     equal(parentSetupCount, 2, 'after four transitions, parent is setup twice');
     equal(parentModelCount, 2, 'after four transitions, parent is modelled twice');
     equal(childSetupCount, 3, 'after four transitions, child is setup thrice');
@@ -388,6 +393,7 @@ asyncTest("setup should be called when query params change", function() {
 
     return router.transitionTo('postDetails', {queryParams: {sort: 'name'}});
   }, shouldNotHappen).then(function() {
+    deepEqual(router.currentQueryParams, {sort: 'name', expandedPane: 'author'}, "Router has correct query params");
     equal(parentSetupCount, 2, 'after five transitions, parent is setup twice');
     equal(parentModelCount, 2, 'after five transitions, parent is modelled twice');
     equal(childSetupCount, 3, 'after five transitions, child is setup thrice');
@@ -461,21 +467,145 @@ asyncTest("when transitioning with the same query params, setup should only be c
   };
 
   router.handleURL('/?sort=author').then(function() {
+    deepEqual(router.currentQueryParams, {sort: 'author'}, "Router has correct query params");
     equal(parentSetupCount, 0, 'precond - parent not setup');
     equal(childSetupCount, 0, 'precond - parent not setup');
 
     return router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'related'}});
+    deepEqual(router.currentQueryParams, {expandedPane: 'related'}, "Router has correct query params");
   }, shouldNotHappen).then(function() {
     equal(parentSetupCount, 1, 'after one transition parent is setup once');
     equal(childSetupCount, 1, 'after one transition child is setup once');
 
     return router.transitionTo('postDetails', context, {queryParams: {expandedPane: 'related'}});
   }, shouldNotHappen).then(function() {
+    deepEqual(router.currentQueryParams, {expandedPane: 'related'}, "Router has correct query params");
     equal(parentSetupCount, 1, 'after two transitions, parent is still setup once');
     equal(childSetupCount, 1, 'after two transitions, child is still setup once');
     start();
   }, shouldNotHappen);
 });
+
+
+
+asyncTest("Sticky query params should be shared among routes", function() {
+  expect(48);
+  var context = { id: 1 }, expectedIndexParams, expectedPostsParams, currentURL;
+
+  router = new Router();
+
+  router.map(function(match) {
+    match("/").to('index').withQueryParams('sort', 'direction');
+    match("/posts").to('posts').withQueryParams('sort', 'direction', 'filter')
+  });
+
+  router.getHandler = function(name) {
+    return handlers[name];
+  };
+
+  router.updateURL = function(url) { currentURL = url; };
+
+  var indexHandler = {
+    beforeModel: function (transition, queryParams) {
+      deepEqual(queryParams, expectedIndexParams, "Correct query params in index beforeModel");
+    },
+
+    model: function(params, transition, queryParams) {
+      deepEqual(queryParams, expectedIndexParams, "Correct query params in index model");
+    },
+
+    afterModel: function (resolvedModel, transition, queryParams) {
+      deepEqual(queryParams, expectedIndexParams, "Correct query params in index afterModel");
+    },
+
+    setup: function(transition, queryParams) {
+      deepEqual(queryParams, expectedIndexParams, "Correct query params in index setup");
+    }
+  };
+
+  var postsHandler = {
+    beforeModel: function (transition, queryParams) {
+      deepEqual(queryParams, expectedPostsParams, "Correct query params in posts beforeModel");
+    },
+
+    model: function(params, transition, queryParams) {
+      deepEqual(queryParams, expectedPostsParams, "Correct query params in posts model");
+    },
+
+    afterModel: function (resolvedModel, transition, queryParams) {
+      deepEqual(queryParams, expectedPostsParams, "Correct query params in posts afterModel");
+    },
+
+    setup: function(transition, queryParams) {
+      deepEqual(queryParams, expectedPostsParams, "Correct query params in posts setup");
+    }
+  };
+
+
+  handlers = {
+    index: indexHandler,
+    posts: postsHandler
+  };
+
+  expectedIndexParams = {sort: 'author'};
+  router.handleURL('/?sort=author').then(function() {
+    deepEqual(router.currentQueryParams, {sort: 'author'}, "Router has correct query params");
+    equal(router.generate('index'), "/?sort=author", "Route generated correctly");
+    equal(router.generate('posts'), "/posts?sort=author", "Route generated correctly");
+    equal(router.generate('index', {queryParams: {sort: false}}), "/", "Route generated correctly");
+    equal(router.generate('posts', {queryParams: {sort: false}}), "/posts", "Route generated correctly");
+    equal(router.generate('index', {queryParams: {sort: true}}), "/?sort", "Route generated correctly");
+    equal(router.generate('posts', {queryParams: {sort: true}}), "/posts?sort", "Route generated correctly");
+
+    raises(function () {
+      router.generate('index', {queryParams: {filter: 'foo'}});
+    }, "No filter param on index");
+
+    expectedPostsParams = {sort: 'author'};
+
+    return router.transitionTo('posts');
+  }, shouldNotHappen).then(function () {
+    equal(currentURL, '/posts?sort=author', "URL is correct after transition");
+    deepEqual(router.currentQueryParams, {sort: 'author'}, "Router has correct query params");
+    equal(router.generate('index'), "/?sort=author", "Route generated correctly");
+    equal(router.generate('posts'), "/posts?sort=author", "Route generated correctly");
+    equal(router.generate('index', {queryParams: {sort: false}}), "/", "Route generated correctly");
+    equal(router.generate('posts', {queryParams: {sort: false}}), "/posts", "Route generated correctly");
+    equal(router.generate('index', {queryParams: {sort: true}}), "/?sort", "Route generated correctly");
+    equal(router.generate('posts', {queryParams: {sort: true}}), "/posts?sort", "Route generated correctly");
+
+
+    expectedPostsParams = {sort: 'author', filter: 'published'};
+    return router.transitionTo({queryParams: {filter: 'published'}});
+  }, shouldNotHappen).then(function () {
+    equal(currentURL, '/posts?sort=author&filter=published', "URL is correct after transition");
+    deepEqual(router.currentQueryParams, {sort: 'author', filter: 'published'}, "Router has correct query params");
+
+    equal(router.generate('index'), "/?sort=author", "Route generated correctly");
+    equal(router.generate('posts'), "/posts?sort=author&filter=published", "Route generated correctly");
+    equal(router.generate('index', {queryParams: {sort: false}}), "/", "Route generated correctly");
+    equal(router.generate('posts', {queryParams: {sort: false}}), "/posts?filter=published", "Route generated correctly");
+    equal(router.generate('index', {queryParams: {sort: true}}), "/?sort", "Route generated correctly");
+    equal(router.generate('posts', {queryParams: {sort: true}}), "/posts?sort&filter=published", "Route generated correctly");
+
+    return router.transitionTo('index');
+  }, shouldNotHappen).then(function () {
+
+    equal(currentURL, '/?sort=author', "URL is correct after transition");
+    deepEqual(router.currentQueryParams, {sort: 'author'}, "Router has correct query params");
+
+    equal(router.generate('index'), "/?sort=author", "Route generated correctly");
+    equal(router.generate('posts'), "/posts?sort=author", "Route generated correctly");
+    equal(router.generate('index', {queryParams: {sort: false}}), "/", "Route generated correctly");
+    equal(router.generate('posts', {queryParams: {sort: false}}), "/posts", "Route generated correctly");
+    equal(router.generate('index', {queryParams: {sort: true}}), "/?sort", "Route generated correctly");
+    equal(router.generate('posts', {queryParams: {sort: true}}), "/posts?sort", "Route generated correctly");
+
+    start();
+  }, shouldNotHappen);
+
+});
+
 
 asyncTest("retrying should work with queryParams", function () {
   expect(1);
@@ -1484,7 +1614,7 @@ asyncTest("when leaving a handler, the context is nulled out", function() {
     ok(!handlers.admin.hasOwnProperty('context'), "The inactive handler's context was nulled out");
     ok(!handlers.adminPost.hasOwnProperty('context'), "The inactive handler's context was nulled out");
     deepEqual(router.currentHandlerInfos, [
-      { context: undefined, handler: handlers.showPost, isDynamic: true, name: 'showPost' }
+      { context: undefined, handler: handlers.showPost, isDynamic: true, name: 'showPost', "queryParams": {} }
     ]);
     start();
   }, shouldNotHappen);
