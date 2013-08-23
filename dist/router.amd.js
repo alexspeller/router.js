@@ -109,7 +109,7 @@ define("router",
       retry: function() {
         this.abort();
         var recogHandlers = this.router.recognizer.handlersFor(this.targetName),
-            handlerInfos  = generateHandlerInfosWithQueryParams(router, recogHandlers, this.queryParams),
+            handlerInfos  = generateHandlerInfosWithQueryParams(this.router, recogHandlers, this.queryParams),
             newTransition = performTransition(this.router, handlerInfos, this.providedModelsArray, this.params, this.queryParams, this.data);
 
         return newTransition;
@@ -549,11 +549,11 @@ define("router",
     }
 
     function mergeSomeKeys(hash, other, keys) {
-      if (!other || !keys) { return }
+      if (!other || !keys) { return; }
       for(var i = 0; i < keys.length; i++) {
         var key = keys[i], value;
         if(other.hasOwnProperty(key)) {
-          var value = other[key];
+          value = other[key];
           if(value === null || value === false || typeof value === "undefined") {
             delete hash[key];
           } else {
@@ -607,15 +607,15 @@ define("router",
     */
     function createNamedTransition(router, args) {
       var partitionedArgs     = extractQueryParams(args),
-        args                  = partitionedArgs[0],
+        pureArgs              = partitionedArgs[0],
         queryParams           = partitionedArgs[1],
-        handlers              = router.recognizer.handlersFor(args[0]),
+        handlers              = router.recognizer.handlersFor(pureArgs[0]),
         handlerInfos          = generateHandlerInfosWithQueryParams(router, handlers, queryParams);
 
 
-      log(router, "Attempting transition to " + args[0]);
+      log(router, "Attempting transition to " + pureArgs[0]);
 
-      return performTransition(router, handlerInfos, slice.call(args, 1), router.currentParams, queryParams);
+      return performTransition(router, handlerInfos, slice.call(pureArgs, 1), router.currentParams, queryParams);
     }
 
     /**
@@ -761,13 +761,13 @@ define("router",
     function queryParamsEqual(a, b) {
       a = a || {};
       b = b || {};
-      var checkedKeys = [];
-      for(var key in a) {
+      var checkedKeys = [], key;
+      for(key in a) {
         if (!a.hasOwnProperty(key)) { continue; }
-        if(b[key] !== a[key]) { return false }
+        if(b[key] !== a[key]) { return false; }
         checkedKeys.push(key);
       }
-      for(var key in b) {
+      for(key in b) {
         if (!b.hasOwnProperty(key)) { continue; }
         if (~checkedKeys.indexOf(key)) { continue; }
         // b has a key not in a
@@ -1051,11 +1051,12 @@ define("router",
 
       var router = transition.router,
           seq = transition.sequence,
-          handlerName = handlerInfos[handlerInfos.length - 1].name;
+          handlerName = handlerInfos[handlerInfos.length - 1].name,
+          i;
 
       // Collect params for URL.
       var objects = [], providedModels = transition.providedModelsArray.slice();
-      for (var i = handlerInfos.length - 1; i>=0; --i) {
+      for (i = handlerInfos.length - 1; i>=0; --i) {
         var handlerInfo = handlerInfos[i];
         if (handlerInfo.isDynamic) {
           var providedModel = providedModels.pop();
@@ -1070,7 +1071,7 @@ define("router",
       router.currentParams = params;
 
       var newQueryParams = {};
-      for (var i = handlerInfos.length - 1; i>=0; --i) {
+      for (i = handlerInfos.length - 1; i>=0; --i) {
         merge(newQueryParams, handlerInfos[i].queryParams);
       }
       router.currentQueryParams = newQueryParams;
