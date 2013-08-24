@@ -279,7 +279,8 @@ define("router",
         @param {Array[Object]} contexts
         @return {Object} a serialized parameter hash
       */
-      paramsForHandler: function(handlerName) {
+
+      paramsForHandler: function(handlerName, contexts) {
         var partitionedArgs = extractQueryParams(slice.call(arguments, 1));
         return paramsForHandler(this, handlerName, partitionedArgs[0], partitionedArgs[1]);
       },
