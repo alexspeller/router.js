@@ -915,7 +915,7 @@ function setQueryParams(handler, queryParams) {
 function extractQueryParams(array) {
   var len = (array && array.length), head, queryParams;
 
-  if(len && len > 0 && (queryParams = array[len - 1].queryParams)) {
+  if(len && len > 0 && array[len - 1] && (queryParams = array[len - 1].queryParams)) {
     head = slice.call(array, 0, len - 1);
     return [head, queryParams];
   } else {
