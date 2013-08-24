@@ -11,6 +11,9 @@ module("The router", {
       match("/index").to("index").withQueryParams('sort', 'filter');
       match("/about").to("about");
       match("/faq").to("faq");
+      match('/nested').to('nestedParent', function (match) {
+        match('/').to('nestedChild').withQueryParams('childParam');
+      }).withQueryParams('parentParam');
       match("/posts", function(match) {
         match("/:id").to("showPost").withQueryParams('foo', 'bar');
         match("/admin/:id").to("admin", function(match) {
@@ -144,6 +147,10 @@ asyncTest("handleURL accepts slash-less URLs", function() {
   };
 
   router.handleURL("posts/all").then(start);
+});
+
+test("Can get query params for a handler", function () {
+  deepEqual(router.queryParamsForHandler('nestedChild'), ["parentParam", "childParam"], "Correct query params for child");
 });
 
 asyncTest("handleURL accepts query params", function() {

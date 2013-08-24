@@ -284,6 +284,17 @@ Router.prototype = {
   },
 
   /**
+    This method takes a handler name and returns a list of query params
+    that are valid to pass to the handler or its parents
+
+    @param {String} handlerName
+    @return {Array[String]} a list of query parameters
+  */
+  queryParamsForHandler: function (handlerName) {
+    return queryParamsForHandler(this, handlerName);
+  },
+
+  /**
     Take a named route and context objects and generate a
     URL.
 
