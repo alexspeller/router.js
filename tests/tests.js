@@ -169,17 +169,19 @@ asyncTest("handleURL accepts query params", function() {
 });
 
 asyncTest("isActive respects query params", function() {
-  expect(6);
+  expect(8);
 
   router.handleURL("/index").then(function () {
     ok(router.isActive('index'), 'Index should be active');
     ok(router.isActive('index', {queryParams: {}}), 'Index should be active');
+    ok(router.isActive('index', {queryParams: {sort: false}}), 'Index should be active');
     ok(!router.isActive('index', {queryParams: {sort: 'name'}}), 'Index should not be active with query params');
 
     return router.handleURL("/index?sort=name");
   }, shouldNotHappen).then(function() {
     ok(router.isActive('index'), 'Index should be active');
     ok(router.isActive('index', {queryParams: {sort: 'name'}}), 'Index should be active');
+    ok(router.isActive('index', {queryParams: {}}), 'Index should be active');
     ok(!router.isActive('index', {queryParams: {sort: false}}), 'Index should not be active without queryParams');
 
     start();

@@ -338,7 +338,8 @@ Router.prototype = {
     var partitionedArgs   = extractQueryParams(slice.call(arguments, 1)),
         contexts          = partitionedArgs[0],
         queryParams       = partitionedArgs[1],
-        foundQueryParams  = {};
+        activeQueryParams  = {},
+        effectiveQueryParams = {};
 
     var targetHandlerInfos = this.targetHandlerInfos,
         found = false, names, object, handlerInfo, handlerObj;
@@ -351,13 +352,17 @@ Router.prototype = {
       if (handlerInfo.name === handlerName) { found = true; }
 
       if (found) {
-        if (queryParams) { merge(foundQueryParams, handlerInfo.queryParams); }
+        var recogHandler = recogHandlers[i];
+
+        merge(activeQueryParams, handlerInfo.queryParams);
+        merge(effectiveQueryParams, handlerInfo.queryParams);
+        mergeSomeKeys(effectiveQueryParams, queryParams, recogHandler.queryParams);
 
         if (handlerInfo.isDynamic && contexts.length > 0) {
           object = contexts.pop();
 
           if (isParam(object)) {
-            var recogHandler = recogHandlers[i], name = recogHandler.names[0];
+            var name = recogHandler.names[0];
             if (object.toString() !== this.currentParams[name]) { return false; }
           } else if (handlerInfo.context !== object) {
             return false;
@@ -366,7 +371,7 @@ Router.prototype = {
       }
     }
 
-    return contexts.length === 0 && found && queryParamsEqual(queryParams, foundQueryParams);
+    return contexts.length === 0 && found && queryParamsEqual(activeQueryParams, effectiveQueryParams);
   },
 
   trigger: function(name) {
