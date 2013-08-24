@@ -168,6 +168,23 @@ asyncTest("handleURL accepts query params", function() {
   router.handleURL("/posts/all?sort=name&sortDirection=descending").then(start, shouldNotHappen);
 });
 
+asyncTest("isActive respects query params", function() {
+  expect(6);
+
+  router.handleURL("/index").then(function () {
+    ok(router.isActive('index'), 'Index should be active');
+    ok(router.isActive('index', {queryParams: {}}), 'Index should be active');
+    ok(!router.isActive('index', {queryParams: {sort: 'name'}}), 'Index should not be active with query params');
+
+    return router.handleURL("/index?sort=name");
+  }, shouldNotHappen).then(function() {
+    ok(router.isActive('index'), 'Index should be active');
+    ok(router.isActive('index', {queryParams: {sort: 'name'}}), 'Index should be active');
+    ok(!router.isActive('index', {queryParams: {sort: false}}), 'Index should not be active without queryParams');
+
+    start();
+  }, shouldNotHappen);
+});
 asyncTest("when transitioning with the same context, setup should only be called once", function() {
   var parentSetupCount = 0,
       childSetupCount = 0;

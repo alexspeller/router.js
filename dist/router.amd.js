@@ -336,7 +336,10 @@ define("router",
       },
 
       isActive: function(handlerName) {
-        var contexts = slice.call(arguments, 1);
+        var partitionedArgs   = extractQueryParams(slice.call(arguments, 1)),
+            contexts          = partitionedArgs[0],
+            queryParams       = partitionedArgs[1],
+            foundQueryParams  = {};
 
         var targetHandlerInfos = this.targetHandlerInfos,
             found = false, names, object, handlerInfo, handlerObj;
@@ -344,15 +347,14 @@ define("router",
         if (!targetHandlerInfos) { return false; }
 
         var recogHandlers = this.recognizer.handlersFor(targetHandlerInfos[targetHandlerInfos.length - 1].name);
-
         for (var i=targetHandlerInfos.length-1; i>=0; i--) {
           handlerInfo = targetHandlerInfos[i];
           if (handlerInfo.name === handlerName) { found = true; }
 
           if (found) {
-            if (contexts.length === 0) { break; }
+            if (queryParams) { merge(foundQueryParams, handlerInfo.queryParams); }
 
-            if (handlerInfo.isDynamic) {
+            if (handlerInfo.isDynamic && contexts.length > 0) {
               object = contexts.pop();
 
               if (isParam(object)) {
@@ -365,7 +367,7 @@ define("router",
           }
         }
 
-        return contexts.length === 0 && found;
+        return contexts.length === 0 && found && queryParamsEqual(queryParams, foundQueryParams);
       },
 
       trigger: function(name) {
